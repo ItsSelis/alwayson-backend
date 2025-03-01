@@ -6,6 +6,7 @@ edition = "2021"
 [dependencies]
 axum = "0.8.1"
 axum-extra = { version = "0.10.0", features = ["typed-header"] }
+chrono = "0.4.40"
 dotenv = "0.15.0"
 mysql = "26.0.0"
 serde = "1.0.217"
