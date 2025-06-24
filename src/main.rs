@@ -62,22 +62,21 @@ async fn main() {
 
     let reader = BufReader::new(dbconfig);
 
-    let mut config_map: HashMap<String, String> = Default::default();
+    let mut config_map: HashMap<String, String> = HashMap::default();
 
-    for line in reader.lines() {
-        match line {
-            Ok(line) => {
-                let re = Regex::new(&format!("^([A-Z_]+) (.*?)$")).unwrap_or_else(|e| {
+    let re = Regex::new("^([A-Z_]+) (.*?)$").unwrap_or_else(|e| {
                     error!("Error while setting up regex: {e}");
                     std::process::exit(1);
                 });
-
+    for line in reader.lines() {
+        match line {
+            Ok(line) => {
                 match re.captures(&line).ok_or("no match") {
                     Ok(caps) => {
                         let key = caps.get(1).unwrap().as_str();
                         let val = caps.get(2).unwrap().as_str();
 
-                        config_map.insert(key.to_string(), val.to_string());
+                        config_map.insert(key.to_owned(), val.to_owned());
                     }
                     Err(e) => trace!("Match error: {e}"),
                 }
@@ -175,7 +174,7 @@ async fn read_logs_handler(
 
     let token = match get_token(state, ckey.clone()) {
         Some(token) => token,
-        None => "".to_string(),
+        None => "".to_owned(),
     };
 
     if token != authorization.token() {
@@ -229,7 +228,7 @@ async fn export_logs_handler(
 
     let token = match get_token(state, ckey.clone()) {
         Some(token) => token,
-        None => "".to_string(),
+        None => "".to_owned(),
     };
 
     if token != authorization.token() {
