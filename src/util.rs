@@ -1,30 +1,47 @@
 use std::sync::Arc;
 
-use axum::{http::StatusCode, Json};
+use axum_extra::headers::Authorization;
+use axum_extra::headers::authorization::Bearer;
 use chrono::DateTime;
 use mysql::{params, prelude::Queryable};
-
+use tracing::error;
 use crate::ServiceState;
 
-pub fn get_token(state: Arc<ServiceState>, ckey: String) -> Option<String> {
+pub fn get_tokens(state: Arc<ServiceState>, ckey: String) -> Vec<String> {
     let mut conn = state.db.get_conn().unwrap();
 
-    let auth_query = "SELECT token FROM chatlogs_ckeys WHERE ckey = :ckey";
-    conn.exec_first(
+    let auth_query = "SELECT token FROM chatlogs_ckeys WHERE ckey = :ckey LIMIT 2";
+    conn.exec(
         auth_query,
         params! {
             "ckey" => ckey.clone()
-        },
-    )
-    .map_err(|e| {
-        eprint!("get_token Error: {e}");
+        }
+    ).unwrap_or_else(|e| {
         let error_response = serde_json::json!({
             "status": "error",
             "message": format!("Error while trying to get chatlogs: {e}"),
         });
-        (StatusCode::INTERNAL_SERVER_ERROR, Json(error_response))
+        error!("{}", error_response);
+        vec![]
     })
-    .unwrap()
+}
+
+pub fn validate_tokens(state: Arc<ServiceState>, ckey: String, authorization: Authorization<Bearer>) -> bool {
+    if authorization.token().is_empty() {
+        return false;
+    }
+
+    let tokens = get_tokens(state, ckey.clone());
+
+    if tokens.is_empty() {
+        return false;
+    }
+
+    if !tokens.iter().any(|t| t == authorization.token()) {
+        return false;
+    }
+
+    true
 }
 
 pub fn resolve_timestamp(timestamp: i64, timezone_offset: i32) -> String {

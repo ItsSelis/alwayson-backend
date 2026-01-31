@@ -31,7 +31,8 @@ use tower_http::{
     trace::TraceLayer,
 };
 use tracing::{error, info, trace};
-use util::{get_token, resolve_timestamp};
+use util::{resolve_timestamp};
+use crate::util::validate_tokens;
 
 mod util;
 
@@ -134,9 +135,7 @@ async fn main() {
         .route("/api/export/{ckey}/{length}", get(export_logs_handler))
         .layer(TraceLayer::new_for_http())
         .layer(cors)
-        .layer(GovernorLayer {
-            config: governor_conf,
-        })
+        .layer(GovernorLayer::new(governor_conf))
         .with_state(Arc::new(ServiceState { db: pool.clone() }));
 
     let api_host = std::env::var("API_HOST").expect("API_HOST must be set");
@@ -172,13 +171,8 @@ async fn read_logs_handler(
 ) -> impl IntoResponse {
     let mut conn = state.db.get_conn().unwrap();
 
-    let token = match get_token(state, ckey.clone()) {
-        Some(token) => token,
-        None => "".to_owned(),
-    };
-
-    if token != authorization.token() {
-        return (StatusCode::UNAUTHORIZED).into_response();
+    if !validate_tokens(state, ckey.clone(), authorization) {
+        return StatusCode::UNAUTHORIZED.into_response();
     }
 
     let query = "SELECT round_id, text_raw, type, created_at FROM chatlogs_logs WHERE target = :ckey ORDER BY ID DESC LIMIT :length";
@@ -226,13 +220,8 @@ async fn export_logs_handler(
 ) -> impl IntoResponse {
     let mut conn = state.db.get_conn().unwrap();
 
-    let token = match get_token(state, ckey.clone()) {
-        Some(token) => token,
-        None => "".to_owned(),
-    };
-
-    if token != authorization.token() {
-        return (StatusCode::UNAUTHORIZED).into_response();
+    if !validate_tokens(state, ckey.clone(), authorization) {
+        return StatusCode::UNAUTHORIZED.into_response();
     }
 
     let query: &str;
