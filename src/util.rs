@@ -7,12 +7,19 @@ use mysql::{params, prelude::Queryable};
 use tracing::error;
 use crate::ServiceState;
 
+fn decode_vec(s: &str) -> Vec<String> {
+    if s.is_empty() {
+        Vec::new()
+    } else {
+        s.split("|").map(String::from).collect()
+    }
+}
+
 pub fn get_tokens(state: Arc<ServiceState>, ckey: String) -> Vec<String> {
     let mut conn = state.db.get_conn().unwrap();
 
-    let auth_query = "SELECT token FROM chatlogs_ckeys WHERE ckey = :ckey LIMIT 2";
-    conn.exec(
-        auth_query,
+    let row: String = conn.exec_first(
+        "SELECT token FROM chatlogs_ckeys WHERE ckey = :ckey",
         params! {
             "ckey" => ckey.clone()
         }
@@ -22,8 +29,10 @@ pub fn get_tokens(state: Arc<ServiceState>, ckey: String) -> Vec<String> {
             "message": format!("Error while trying to get chatlogs: {e}"),
         });
         error!("{}", error_response);
-        vec![]
-    })
+        None
+    }).unwrap_or_default();
+
+    decode_vec(&row)
 }
 
 pub fn validate_tokens(state: Arc<ServiceState>, ckey: String, authorization: Authorization<Bearer>) -> bool {
